@@ -2,7 +2,7 @@
 
 Wortfilter ist ein lokales Lua-AddOn für World of Warcraft: Forever 1.60.1 (AddOn-Interface 16001). Es ersetzt konfigurierbare Wörter und Lua-Textmuster in erreichbaren Quest-, Benutzeroberflächen- und Chattexten, ohne Spieldateien oder Serverdaten zu verändern.
 
-**Projektstatus:** Version 0.2.0. Lua-Smoke-Tests mit simulierten WoW-APIs erfolgreich; ein Test im laufenden Spiel steht noch aus.
+**Projektstatus:** Version 0.3.0. Lua-Smoke-Tests mit simulierten WoW-APIs erfolgreich; ein Test im laufenden Spiel steht noch aus.
 
 ## Installation
 
@@ -11,7 +11,7 @@ Wortfilter ist ein lokales Lua-AddOn für World of Warcraft: Forever 1.60.1 (Add
 3. Im AddOn-Menü Wortfilter aktivieren.
 4. Das Spiel starten und /wf eingeben.
 
-Der zu installierende Ordner ist: Wortfilter/ (mit den Dateien Wortfilter_Camelot.toc, Wortfilter_Defaults.lua, Wortfilter_Core.lua und Wortfilter_UI.lua).
+Der zu installierende Ordner ist: Wortfilter/ (mit den Dateien Wortfilter_Camelot.toc, Wortfilter_Defaults.lua, Wortfilter_Core.lua, Wortfilter_Abilities.lua und Wortfilter_UI.lua).
 
 ## Einstellungen im Spiel
 
@@ -95,3 +95,11 @@ python3 scripts/build_zip.py
 
 Hinweis zur Abdeckung: Alle öffentlichen Lua-`WF.*`-Methoden besitzen benannte Tests. Interne lokale Funktionen und UI-/Event-Callbacks werden über Integrationspfade geprüft; das ist **keine** gemessene 100%-Statement- oder Branch-Coverage und kein Ersatz für einen Test im echten WoW-Client.
 
+
+## Attacken, Zauber und Fähigkeiten (ab 0.3.0)
+
+Wortfilter verwendet **dieselben gespeicherten Regeln** auch für sichtbare Zauber- und Fähigkeitentexte. Beispiel: `Gottesurteil` → `ottesurteil`, `Göttlicher Schlag` → `öttlicher Schlag`. Neue Regeln über `/wf` gelten auch dort.
+
+Der neue Modul-Hook berücksichtigt Spell- und Aura-Tooltips über `TooltipDataProcessor.AddTooltipPostCall` sowie Textlabels im Zauberbuch, auf Aktionsleisten und Zauberbalken. Nachgeladene Fenster und Spell-/Actionbar-Ereignisse werden nachgeprüft, soweit die Client-API dies zulässt.
+
+**Grenzen:** Es ist nur eine lokale Umbenennung der Anzeige, ohne Zauber-IDs, Makros, Casts oder Spielmechanik zu ändern. Geschützte Texte, als Bild gerenderte Namen oder nicht verfügbare FontStrings können weiterhin im Original erscheinen. Tests mit simulierten WoW-APIs ersetzen keinen Lauf im echten Forever-Client.

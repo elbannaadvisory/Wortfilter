@@ -19,6 +19,12 @@ local function setup(opts)
   _G.WortfilterDB = opts.saved
   _G.C_Timer = nil
   _G.ChatFrameUtil = nil
+  _G.TooltipDataProcessor = nil
+  _G.Enum = nil
+  _G.GameTooltip = nil
+  _G.PlayerSpellsFrame = nil
+  _G.CastingBarFrame = nil
+  _G.ActionBarFrame = nil
   _G.issecretvalue = nil
   _G.SlashCmdList = {}
   _G.UISpecialFrames = {}
@@ -324,6 +330,122 @@ case("Editor invalid pattern shows validation feedback",function()
   local fields=c.inputs(); fields[1]:SetText("["); fields[2]:SetText("test")
   for _,f in ipairs(c.frames) do if f.kind=="CheckButton" and f.Text and (f.Text:GetText() or ""):find("Lua-Pattern",1,true) then f:SetChecked(true) end end
   c.click("Speichern"); assertEqual(#c.wf.GetRules(),3)
+end)
+
+
+case("WF.ScanFrame handles tooltip regions outside UIParent",function()
+  local c=setup()
+  local popup=c.create("Frame",nil,nil)
+  local fs=popup:CreateFontString()
+  fs.value="Gottesurteil und Göttlicher Schlag" -- Text written by an opaque tooltip renderer
+  assert(c.wf.ScanFrame(popup)>0)
+  assertEqual(fs:GetText(),"ottesurteil und öttlicher Schlag")
+  assertEqual(c.wf.ScanFrame(nil),0)
+end)
+case("WF.ScanFrame detects recycled tooltip text after rewrite",function()
+  local c=setup()
+  local popup=c.create("Frame",nil,nil)
+  local fs=popup:CreateFontString()
+  fs:SetText("Gottesurteil")
+  assertEqual(fs:GetText(),"ottesurteil")
+  fs.value="Göttlicher Zorn" -- recycled without SetText
+  c.wf.ScanFrame(popup)
+  assertEqual(fs:GetText(),"öttlicher Zorn")
+  c.wf.SetEnabled(false)
+  assertEqual(fs:GetText(),"Göttlicher Zorn")
+end)
+case("WF.RefreshAbilityText processes spellbook and castbar text",function()
+  local c=setup()
+  local book=c.create("Frame","PlayerSpellsFrame",UIParent)
+  local bar=c.create("Frame","CastingBarFrame",UIParent)
+  local spell=book:CreateFontString()
+  local cast=bar:CreateFontString()
+  spell.value="Göttlicher Schutz"
+  cast.value="Gottesstrahl"
+  dofile("Wortfilter/Wortfilter_Abilities.lua")
+  assert(c.wf.RefreshAbilityText()>0)
+  assertEqual(spell:GetText(),"öttlicher Schutz")
+  assertEqual(cast:GetText(),"ottesstrahl")
+  spell.value="Gott"
+  assert(c.wf.RefreshAbilityText(book)>0)
+  assertEqual(spell:GetText(),"ott")
+end)
+case("WF.RefreshAbilityText guards missing or unsupported frames",function()
+  local c=setup({noHook=true})
+  dofile("Wortfilter/Wortfilter_Abilities.lua")
+  assertEqual(c.wf.RefreshAbilityText(),0)
+  assertEqual(c.wf.RefreshAbilityText({}),0)
+end)
+case("WF.RegisterAbilityHooks installs spell and aura postprocessors once",function()
+  local c=setup()
+  local installed = {}
+  _G.Enum={TooltipDataType={Spell=1,UnitAura=7,Item=2}}
+  _G.TooltipDataProcessor={AddTooltipPostCall=function(id, callback)
+    assert(not installed[id],"duplicate tooltip postprocessor")
+    installed[id]=callback
+  end}
+  local tooltip=c.create("Frame","GameTooltip",nil)
+  local line=tooltip:CreateFontString()
+  dofile("Wortfilter/Wortfilter_Abilities.lua")
+  assert(type(installed[1])=="function" and type(installed[7])=="function" and type(installed[2])=="function")
+  assertEqual(installed[999],nil)
+  line.value="Göttlicher Zorn"
+  installed[1](tooltip,{id=1234})
+  assertEqual(line:GetText(),"öttlicher Zorn")
+  c.wf.RegisterAbilityHooks() -- must not add duplicate callbacks
+  line.value="Gottesurteil"
+  installed[7](tooltip,{id=4321})
+  assertEqual(line:GetText(),"ottesurteil")
+  _G.TooltipDataProcessor=nil; _G.Enum=nil
+end)
+case("WF.RegisterAbilityHooks installs OnShow fallback for late spellbook",function()
+  local c=setup()
+  _G.Enum=nil; _G.TooltipDataProcessor=nil
+  dofile("Wortfilter/Wortfilter_Abilities.lua")
+  local book=c.create("Frame","PlayerSpellsFrame",UIParent)
+  book.HookScript=function(self,event,callback) self.scripts[event]=callback end
+  local name=book:CreateFontString()
+  name.value="Göttlicher Angriff"
+  local watcher
+  for _,f in ipairs(c.frames) do
+    if f.registered and f.registered.SPELLS_CHANGED then watcher=f end
+  end
+  assert(watcher and watcher.scripts.OnEvent)
+  watcher.scripts.OnEvent(watcher,"ADDON_LOADED","Blizzard_PlayerSpells")
+  assert(type(book.scripts.OnShow)=="function")
+  book.scripts.OnShow(book)
+  assertEqual(name:GetText(),"öttlicher Angriff")
+end)
+case("Ability events rescan actionbar and active casts",function()
+  local c=setup()
+  _G.Enum=nil; _G.TooltipDataProcessor=nil
+  local bar=c.create("Frame","ActionBarFrame",UIParent)
+  local cast=c.create("Frame","CastingBarFrame",UIParent)
+  local ability=bar:CreateFontString()
+  local currentCast=cast:CreateFontString()
+  dofile("Wortfilter/Wortfilter_Abilities.lua")
+  local watcher
+  for _,f in ipairs(c.frames) do
+    if f.registered and f.registered.ACTIONBAR_SLOT_CHANGED then watcher=f end
+  end
+  assert(watcher and watcher.registered.UNIT_SPELLCAST_START)
+  ability.value="Gottes Wut"
+  watcher.scripts.OnEvent(watcher,"ACTIONBAR_SLOT_CHANGED")
+  assertEqual(ability:GetText(),"ottes Wut")
+  currentCast.value="Göttlicher Schlag"
+  watcher.scripts.OnEvent(watcher,"UNIT_SPELLCAST_START")
+  assertEqual(currentCast:GetText(),"öttlicher Schlag")
+end)
+case("Ability rules are editable and reversible with global filter",function()
+  local c=setup()
+  local spellbook=c.create("Frame","PlayerSpellsFrame",UIParent)
+  local name=spellbook:CreateFontString()
+  dofile("Wortfilter/Wortfilter_Abilities.lua")
+  name:SetText("Feuerball")
+  assert(c.wf.AddRule({pattern="Feuerball",replacement="Sternenball",usePattern=false,enabled=true}))
+  assertEqual(name:GetText(),"Sternenball")
+  c.wf.SetEnabled(false); assertEqual(name:GetText(),"Feuerball")
+  c.wf.SetEnabled(true); assertEqual(name:GetText(),"Sternenball")
 end)
 
 -- JUnit document per runtime gives precise test name, stack trace and direct failure context.
