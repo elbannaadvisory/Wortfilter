@@ -153,7 +153,8 @@ function WF.ToggleUI()
     editor:SetScript("OnDragStop", editor.StopMovingOrSizing)
     if editor.TitleText then
         ignoreLabel(editor.TitleText)
-        editor.TitleText:SetText("Wortfilter | Regeln verwalten")
+        -- First visible line of the addon editor; exempted from filtering above.
+        editor.TitleText:SetText("Jemand könnte sagen ")
     end
     if editor.CloseButton and editor.CloseButton.SetScript then
         editor.CloseButton:SetScript("OnClick", function() editor:Hide() end)

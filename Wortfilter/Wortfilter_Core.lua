@@ -124,7 +124,13 @@ local function inspectFontString(fontString)
     if ignoredFontStrings[fontString] then return end
     local ok, current = pcall(fontString.GetText, fontString)
     if not ok or not safeString(current) then return end
-    if rawTexts[fontString] == nil then rawTexts[fontString] = current end
+    -- Tooltip and spellbook FontStrings are frequently recycled by the client.
+    -- When their content changes outside SetText, replace the stored original
+    -- rather than resurrecting the previous spell name during a refresh.
+    local previous = rawTexts[fontString]
+    if previous == nil or (current ~= previous and current ~= WF.Replace(previous)) then
+        rawTexts[fontString] = current
+    end
     local original = rawTexts[fontString]
     local translated = WF.Replace(original)
     if current ~= translated and originalSetText then
@@ -134,9 +140,11 @@ local function inspectFontString(fontString)
     end
 end
 
-function WF.ScanFonts()
-    if not originalSetText or not UIParent then return 0 end
-    local stack, processed = { UIParent }, 0
+-- Scan only a target frame and descendants, including tooltip regions.
+-- This is used for ability tooltips, which can be created outside UIParent.
+function WF.ScanFrame(root)
+    if not originalSetText or not root then return 0 end
+    local stack, processed = { root }, 0
     while #stack > 0 and processed < FONTSTRING_SCAN_LIMIT do
         local frame = stack[#stack]
         stack[#stack] = nil
@@ -160,6 +168,10 @@ function WF.ScanFonts()
         end
     end
     return processed
+end
+
+function WF.ScanFonts()
+    return WF.ScanFrame(UIParent)
 end
 
 function WF.Reapply()

@@ -3,7 +3,7 @@
 from pathlib import Path
 import re
 
-files = [Path("Wortfilter/Wortfilter_Core.lua"), Path("Wortfilter/Wortfilter_UI.lua")]
+files = [Path("Wortfilter/Wortfilter_Core.lua"), Path("Wortfilter/Wortfilter_UI.lua"), Path("Wortfilter/Wortfilter_Abilities.lua")]
 api = set()
 for file in files:
     source = file.read_text(encoding="utf-8")
