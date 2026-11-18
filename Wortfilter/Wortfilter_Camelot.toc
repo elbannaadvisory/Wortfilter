@@ -1,0 +1,9 @@
+## Interface: 16001
+## Title: Wortfilter
+## Notes: Eigene Such- und Ersetzungsregeln im Spiel verwalten; lokale Textanzeige
+## Author: ElBanna Advisory
+## Version: 0.2.0
+## SavedVariables: WortfilterDB
+Wortfilter_Defaults.lua
+Wortfilter_Core.lua
+Wortfilter_UI.lua
