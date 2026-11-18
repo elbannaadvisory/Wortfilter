@@ -6,3 +6,6 @@ Thumbs.db
 .vscode/
 .idea/
 SavedVariables/
+dist/
+test-results.xml
+*-report.xml

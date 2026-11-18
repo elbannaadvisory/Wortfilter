@@ -73,3 +73,25 @@ Quellcode und Fortschritt: https://github.com/elbannaadvisory/Wortfilter
 - CHANGELOG.md: Änderungen nach Version
 
 Änderungen bevorzugt auf einem Feature-Branch entwickeln und über Pull Requests nach main integrieren. Ohne ausdrückliche Freigabe keine Spieldateien verändern.
+
+## Continuous Integration (CI)
+
+Die GitHub-Actions-Pipeline **Test and package Wortfilter** läuft automatisch bei jedem Push und Pull Request sowie manuell über *Run workflow*.
+
+1. **API / TOC contract**: `scripts/check_api_tests.py` erzwingt für jede öffentliche `WF.*`-Methode einen namentlich zugeordneten Test in `tests/regression.lua`; `scripts/build_zip.py` validiert die Manifest-Dateiliste.
+2. **Lua 5.1 und 5.4**: Syntaxprüfung, bestehender Smoke-Test und 36 einzeln benannte Regressionstests. Die Tests laufen mit simulierten WoW-APIs, sodass Fehler über Testname und Stacktrace zuordenbar sind.
+3. **ZIP**: Erst wenn alle Tests erfolgreich sind, entsteht das installierbare `Wortfilter-v<Version>.zip` (Version aus der .toc). Es enthält den Ordner `Wortfilter/` mit Manifest und allen Lua-Dateien. Das ZIP wird unter *Actions → Workflow-Lauf → Artifacts* hochgeladen.
+
+Auch fehlgeschlagene Tests erzeugen, soweit die Suite ausgeführt wurde, JUnit-XML-Dateien als zusätzliche Actions-Artefakte (`wortfilter-test-results-lua-5.1` und `wortfilter-test-results-lua-5.4`).
+
+Lokaler Testlauf (Lua 5.1 oder 5.4 erforderlich):
+
+```sh
+python3 scripts/check_api_tests.py
+lua5.4 tests/smoke.lua
+lua5.4 tests/regression.lua test-results.xml
+python3 scripts/build_zip.py
+```
+
+Hinweis zur Abdeckung: Alle öffentlichen Lua-`WF.*`-Methoden besitzen benannte Tests. Interne lokale Funktionen und UI-/Event-Callbacks werden über Integrationspfade geprüft; das ist **keine** gemessene 100%-Statement- oder Branch-Coverage und kein Ersatz für einen Test im echten WoW-Client.
+

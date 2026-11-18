@@ -1,13 +1,78 @@
-name: Lua smoke tests
+name: Test and package Wortfilter
+
 on:
   push:
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
-  smoke:
+  api-and-package-checks:
+    name: API / TOC contract
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Lua
-        run: sudo apt-get update && sudo apt-get install -y lua5.4
-      - name: Verify addon behavior
-        run: lua5.4 tests/smoke.lua
+      - name: Verify every public WF method has a named test
+        run: python3 scripts/check_api_tests.py
+      - name: Validate manifest and reproducible ZIP builder
+        run: python3 scripts/build_zip.py
+
+  tests:
+    name: Lua ${{ matrix.lua }} - isolated method and integration tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lua: ['5.1', '5.4']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua ${{ matrix.lua }}
+        run: sudo apt-get update && sudo apt-get install -y lua${{ matrix.lua }}
+      - name: Syntax check all Lua source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in Wortfilter/*.lua tests/*.lua; do
+            luac${{ matrix.lua }} -p "$f"
+          done
+      - name: Run existing integration smoke test
+        run: lua${{ matrix.lua }} tests/smoke.lua
+      - name: Run named method regression tests (JUnit report)
+        run: lua${{ matrix.lua }} tests/regression.lua test-results.xml
+      - name: Upload JUnit report (including failures)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wortfilter-test-results-lua-${{ matrix.lua }}
+          path: test-results.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+  zip:
+    name: Wortfilter installable ZIP
+    runs-on: ubuntu-latest
+    needs: [api-and-package-checks, tests]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package addon (fail on missing TOC file)
+        id: package
+        shell: bash
+        run: |
+          python3 scripts/build_zip.py
+          VERSION=$(sed -n 's/^## Version: *//p' Wortfilter/Wortfilter_Camelot.toc | tr -d '\r')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Verify ZIP integrity and exact addon structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -t dist/Wortfilter-v*.zip
+      - name: Upload installable ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wortfilter-v${{ steps.package.outputs.version }}
+          path: dist/Wortfilter-v${{ steps.package.outputs.version }}.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
